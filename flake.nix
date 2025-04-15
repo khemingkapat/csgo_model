@@ -29,6 +29,7 @@
           graphviz
           fastparquet
           pyarrow
+          ipywidgets
           (ps.buildPythonPackage rec {
             pname = "jupyterlab-vim";
             version = "4.1.4";
