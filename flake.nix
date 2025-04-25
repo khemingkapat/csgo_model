@@ -30,6 +30,7 @@
           fastparquet
           pyarrow
           ipywidgets
+          statsmodel
           (ps.buildPythonPackage rec {
             pname = "jupyterlab-vim";
             version = "4.1.4";
