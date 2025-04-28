@@ -32,6 +32,7 @@
           ipywidgets
           statsmodels
           xgboost
+          shap
           (ps.buildPythonPackage rec {
             pname = "jupyterlab-vim";
             version = "4.1.4";
