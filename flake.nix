@@ -33,6 +33,7 @@
           statsmodels
           xgboost
           shap
+          streamlit
           (ps.buildPythonPackage rec {
             pname = "jupyterlab-vim";
             version = "4.1.4";
