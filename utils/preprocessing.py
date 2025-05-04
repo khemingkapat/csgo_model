@@ -8,14 +8,22 @@ def preprocess(dfs):
         df = val.copy()
 
         # Standardize index
-        if "match_id" in df.columns and "round_num" in df.columns:
-            df = df.set_index(["match_id", "round_num"])
+        if "round_num" in df.columns:
+            df = df.set_index(["round_num"])
 
         if key == "damages":
             df["total_damage"] = df["hp_damage"] + df["armor_damage"]
             df["total_damage_taken"] = df["hp_damage_taken"] + df["armor_damage_taken"]
 
         processed[key] = df
+
+    processed["matches"]["match_date"] = pd.to_datetime(
+        processed["matches"]["match_date"]
+    )
+
+    processed["rounds"]["n_ticks"] = (
+        processed["rounds"]["end_tick"] - processed["rounds"]["start_tick"]
+    )
 
     # Step 2: Tick normalization
     idx_r_df = processed["rounds"]
@@ -73,6 +81,7 @@ def preprocess(dfs):
 
     # Step 4: Add 'grenade_connected' to grenades
     g_df = processed["grenades"].copy()
+    g_df["grenade_side"] = g_df.thrower_side
 
     for idx in g_df.index.unique():
         round_g = g_df.loc[idx].copy()
