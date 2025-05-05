@@ -133,7 +133,7 @@ def overview_page():
     with col2:
         st.subheader("Side Win Features' Different")
         _, fig = plot_scaled_feature_difference(transformed_data["rounds_sum"])
-        st.plotly_chart(fig)
+        st.plotly_chart(fig, use_container_width=True)
 
 
 # Location page with visualizations
