@@ -219,9 +219,9 @@ def location_page():
 
         with col2:
             st.subheader("Size")
-            flash_size = 10 + int(st.checkbox("Big Flash", value=False)) * 20
-            kill_size = 10 + int(st.checkbox("Big Kill", value=False)) * 20
-            grenade_size = 10 + int(st.checkbox("Big Grenade", value=False)) * 20
+            flash_size = 30 + int(st.checkbox("Big Flash", value=False)) * 20
+            kill_size = 30 + int(st.checkbox("Big Kill", value=False)) * 20
+            grenade_size = 30 + int(st.checkbox("Big Grenade", value=False)) * 20
 
     st.subheader(f"Game Actions - Round {selected_round}")
 

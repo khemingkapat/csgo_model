@@ -9,6 +9,10 @@ import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
 import numpy as np
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+from PIL import Image
+import requests
+from io import BytesIO
 
 
 def upload_and_parse_json(preview_limit=10):
@@ -119,7 +123,7 @@ def count_colorbar(fig):
     return result
 
 
-def plot_loc_unicode(
+def plot_loc_img_unicode(
     player_loc,
     gradient_by,
     size,
@@ -133,7 +137,19 @@ def plot_loc_unicode(
     fig=None,
     ax=None,
 ):
+    """
+    Plot locations with unicode markers or images.
 
+    Parameters:
+    -----------
+    size : int/float
+        Size parameter that controls both text fontsize and image display size
+    marker_dict : dict
+        Dictionary mapping marker keys to either:
+        - Unicode strings (e.g., '⚽', '🏀') for text markers
+        - Image paths/URLs (e.g., 'path/to/image.png', 'https://...') for images
+        - PIL Image objects
+    """
     if fig is None and ax is None:
         fig, ax = plt.subplots(figsize=(10, 8))
 
@@ -155,8 +171,19 @@ def plot_loc_unicode(
 
     side = ["left", "right"]
     n_colorbar = count_colorbar(fig)
-
     previous_cmap = plt.get_cmap(default_color)  # Initial cmap
+
+    # Cache for loaded images to avoid reloading
+    image_cache = {}
+
+    # Calculate image parameters based on size
+    # Convert fontsize to approximate pixel size for images
+    # Typical conversion: fontsize * 1.3 gives approximate pixel height
+    image_pixel_size = int(size * 1.3)
+    image_size = (image_pixel_size, image_pixel_size)
+    # Auto-calculate zoom to match the size parameter
+    # Base zoom calculation to make image similar size to text
+    auto_zoom = size / 100.0  # Adjust this ratio as needed
 
     for idx, row in transformed.iterrows():
         # Determine colormap
@@ -181,16 +208,63 @@ def plot_loc_unicode(
             marker_key = row[marker_by]
             marker_char = marker_dict.get(marker_key, default_marker)
 
-        ax.text(
-            row["x"],
-            row["y"],
-            marker_char,
-            fontsize=size,
-            color=color,
-            ha="center",
-            va="center",
-            alpha=alpha,
-        )
+        # Check if marker_char is an image or unicode text
+        if _is_image_marker(marker_char):
+            # Handle image marker
+            try:
+                img_array = _load_and_process_image(
+                    marker_char, image_size, image_cache
+                )
+                if img_array is not None:
+                    # Apply color tint to image if needed (optional feature)
+                    if len(img_array.shape) == 3 and img_array.shape[2] == 4:  # RGBA
+                        tinted_img = _apply_color_tint(img_array, color, alpha)
+                    else:
+                        tinted_img = img_array
+
+                    # Create OffsetImage with auto-calculated zoom
+                    imagebox = OffsetImage(tinted_img, zoom=auto_zoom)
+                    ab = AnnotationBbox(
+                        imagebox, (row["x"], row["y"]), frameon=False, pad=0
+                    )
+                    ax.add_artist(ab)
+                else:
+                    # Fallback to text if image loading fails
+                    ax.text(
+                        row["x"],
+                        row["y"],
+                        "?",  # Question mark as fallback
+                        fontsize=size,
+                        color=color,
+                        ha="center",
+                        va="center",
+                        alpha=alpha,
+                    )
+            except Exception as e:
+                print(f"Error loading image for marker {marker_char}: {e}")
+                # Fallback to text
+                ax.text(
+                    row["x"],
+                    row["y"],
+                    "?",
+                    fontsize=size,
+                    color=color,
+                    ha="center",
+                    va="center",
+                    alpha=alpha,
+                )
+        else:
+            # Handle unicode/text marker (original behavior)
+            ax.text(
+                row["x"],
+                row["y"],
+                marker_char,
+                fontsize=size,
+                color=color,
+                ha="center",
+                va="center",
+                alpha=alpha,
+            )
 
     ax.set_xlabel("X Coordinate (pixels)")
     ax.set_ylabel("Y Coordinate (pixels)")
@@ -222,6 +296,100 @@ def plot_loc_unicode(
             cbar.ax.tick_params(labelsize=7)
 
     return fig, ax
+
+
+def _is_image_marker(marker):
+    """
+    Determine if a marker is an image (file path, URL, or PIL Image object)
+    """
+    if isinstance(marker, Image.Image):
+        return True
+
+    if isinstance(marker, str):
+        # Check if it's a file path or URL
+        if (
+            marker.startswith("http://")
+            or marker.startswith("https://")
+            or marker.endswith((".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff"))
+        ):
+            return True
+
+    return False
+
+
+def _load_and_process_image(marker, target_size, cache):
+    """
+    Load and process image from various sources
+    """
+    # Use cache key
+    cache_key = str(marker) + str(target_size)
+    if cache_key in cache:
+        return cache[cache_key]
+
+    try:
+        img = None
+
+        if isinstance(marker, Image.Image):
+            # Already a PIL Image
+            img = marker
+        elif isinstance(marker, str):
+            if marker.startswith("http://") or marker.startswith("https://"):
+                # URL
+                response = requests.get(marker, timeout=10)
+                response.raise_for_status()
+                img = Image.open(BytesIO(response.content))
+            else:
+                # File path
+                img = Image.open(marker)
+
+        if img is not None:
+            # Convert to RGBA for consistency
+            if img.mode != "RGBA":
+                img = img.convert("RGBA")
+
+            # Resize image
+            img_resized = img.resize(target_size, Image.LANCZOS)
+
+            # Convert to numpy array
+            img_array = np.array(img_resized)
+
+            # Cache the processed image
+            cache[cache_key] = img_array
+
+            return img_array
+
+    except Exception as e:
+        print(f"Failed to load image {marker}: {e}")
+        cache[cache_key] = None
+        return None
+
+    return None
+
+
+def _apply_color_tint(img_array, color, alpha_factor=1.0):
+    """
+    Apply color tint to RGBA image while preserving transparency
+    """
+    if len(img_array.shape) != 3 or img_array.shape[2] != 4:
+        return img_array
+
+    # Create a copy to avoid modifying original
+    tinted = img_array.copy().astype(float)
+
+    # Extract RGB components from matplotlib color (0-1 range)
+    if len(color) >= 3:
+        r, g, b = color[:3]
+
+        # Apply tint to RGB channels where alpha > 0
+        alpha_mask = tinted[:, :, 3] > 0
+        tinted[alpha_mask, 0] = tinted[alpha_mask, 0] * r / 255.0 * 255.0
+        tinted[alpha_mask, 1] = tinted[alpha_mask, 1] * g / 255.0 * 255.0
+        tinted[alpha_mask, 2] = tinted[alpha_mask, 2] * b / 255.0 * 255.0
+
+    # Apply alpha factor
+    tinted[:, :, 3] = tinted[:, :, 3] * alpha_factor
+
+    return tinted.astype(np.uint8)
 
 
 def plot_line(
@@ -342,7 +510,7 @@ def plot_actions_by_max_tick(
     )
 
     if show_loc and len(filtered_loc) > 0:
-        loc_fig, loc_ax = plot_loc_unicode(
+        loc_fig, loc_ax = plot_loc_img_unicode(
             filtered_loc,
             gradient_by="tick",
             size=5,
@@ -357,7 +525,7 @@ def plot_actions_by_max_tick(
 
     # Plot flashes
     if show_flash and len(filtered_flash) > 0:
-        flash_fig, flash_ax = plot_loc_unicode(
+        flash_fig, flash_ax = plot_loc_img_unicode(
             filtered_flash,
             gradient_by="tick",
             size=flash_size,
@@ -390,7 +558,7 @@ def plot_actions_by_max_tick(
 
     # Plot kills
     if show_kills and len(filtered_kills) > 0:
-        kill_fig, kill_ax = plot_loc_unicode(
+        kill_fig, kill_ax = plot_loc_img_unicode(
             filtered_kills,
             gradient_by="tick",
             size=kill_size,
@@ -423,7 +591,7 @@ def plot_actions_by_max_tick(
 
     # Plot grenades
     if show_grenades and len(filtered_grenades) > 0:
-        grenade_fig, grenade_ax = plot_loc_unicode(
+        grenade_fig, grenade_ax = plot_loc_img_unicode(
             filtered_grenades,
             gradient_by="throw_tick",
             size=grenade_size,
@@ -585,8 +753,6 @@ def plot_location_change_analysis(clean_dfs, round_num):
     sel_loc = (
         clean_dfs["player_frames"].loc[round_num][["tick", "side", "x", "y"]].copy()
     )
-    first_tick = clean_dfs["rounds"].loc[round_num]["start_tick"]
-    sel_loc["tick"] -= first_tick
     curr_x = sel_loc.iloc[1:]["x"].values
     prev_x = sel_loc.iloc[:-1]["x"].values
     curr_y = sel_loc.iloc[1:]["y"].values
@@ -648,7 +814,6 @@ def plot_location_change_analysis(clean_dfs, round_num):
 
     # Subplot 1: Add Flash events - each to its specific subplot
     sel_f = clean_dfs["flashes"].loc[round_num].reset_index()
-    sel_f["tick"] -= first_tick
 
     flash_events = []
     for attacker_side in ["CT", "T"]:
@@ -695,7 +860,6 @@ def plot_location_change_analysis(clean_dfs, round_num):
 
     # Subplot 2: Add Kill events
     sel_k = clean_dfs["kills"].loc[round_num].reset_index()
-    sel_k["tick"] -= first_tick
 
     kill_events = []
     for attacker_side in ["CT", "T"]:
@@ -742,7 +906,6 @@ def plot_location_change_analysis(clean_dfs, round_num):
 
     # Subplot 3: Add Grenade events
     sel_g = clean_dfs["grenades"].loc[round_num].reset_index()
-    sel_g["throw_tick"] -= first_tick
 
     grenade_events = []
     for thrower_side in ["CT", "T"]:
