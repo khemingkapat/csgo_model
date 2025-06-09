@@ -1,5 +1,6 @@
 import pandas as pd
 import re
+import datetime
 
 
 def get_top_level(data):
@@ -38,8 +39,10 @@ def parse_json_to_dfs(data):
 
     # Extract match_id first since it's needed for all other tables
     match_data = dict(get_top_level(data))
+    match_data["matchDate"] = datetime.datetime.fromtimestamp(
+        match_data["matchDate"] / 1000
+    ).strftime("%Y-%m-%d %H:%M:%S")
     match_id = match_data["matchId"]
-    match_data["match_id"] = match_id  # Add match_id to itself for consistency
     parsed["matches"].append(match_data)
 
     if "gameRounds" in data and data["gameRounds"]:
