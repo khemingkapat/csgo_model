@@ -34,6 +34,8 @@
           xgboost
           shap
           streamlit
+          scikit-image
+          opencv4
           (ps.buildPythonPackage rec {
             pname = "jupyterlab-vim";
             version = "4.1.4";
