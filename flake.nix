@@ -36,6 +36,8 @@
           streamlit
           scikit-image
           opencv4
+          igraph
+          leidenalg
           (ps.buildPythonPackage rec {
             pname = "jupyterlab-vim";
             version = "4.1.4";
