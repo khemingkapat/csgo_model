@@ -1,0 +1,3 @@
+[submodule "apps/csgo_visualizer"]
+	path = apps/csgo_visualizer
+	url = git@github.com:khemingkapat/csgo_visualizer.git
