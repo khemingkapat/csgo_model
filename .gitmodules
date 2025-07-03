@@ -1,3 +1,6 @@
 [submodule "apps/csgo_visualizer"]
 	path = apps/csgo_visualizer
 	url = git@github.com:khemingkapat/csgo_visualizer.git
+[submodule "src/src/esta"]
+	path = src/src/esta
+	url = https://github.com/khemingkapat/esta.git
