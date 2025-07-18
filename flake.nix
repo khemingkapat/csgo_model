@@ -2,69 +2,73 @@
   description = "Nix-based JupyterLab with Python for CSGO Modelling";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    { self
+    , nixpkgs
+    , flake-utils
+    ,
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
         pkgs = import nixpkgs { inherit system; };
         python = pkgs.python311;
 
+        pythonEnv = python.withPackages (
+          ps: with ps; [
+            numpy
+            pandas
+            matplotlib
+            scipy
+            nbconvert
+            jupyterlab
+            ipykernel
+            plotly
+            seaborn
+            scikit-learn
+            graphviz
+            fastparquet
+            pyarrow
+            ipywidgets
+            statsmodels
+            xgboost
+            shap
+            scikit-image
+            opencv4
+            igraph
+            leidenalg
+            (ps.buildPythonPackage rec {
+              pname = "jupyterlab-vim";
+              version = "4.1.4";
+              pyproject = true;
 
+              src = fetchPypi {
+                pname = "jupyterlab_vim";
+                inherit version;
+                hash = "sha256-q/KJGq+zLwy5StmDIa5+vL4Mq+Uj042A1WnApQuFIlo=";
+              };
 
+              build-system = with pkgs; [
+                hatch-nodejs-version
+                hatchling
+                jupyterlab
+              ];
 
-        pythonEnv = python.withPackages (ps: with ps; [
-          numpy
-          pandas
-          matplotlib
-          scipy
-          nbconvert
-          jupyterlab
-          ipykernel
-          plotly
-          seaborn
-          scikit-learn
-          graphviz
-          fastparquet
-          pyarrow
-          ipywidgets
-          statsmodels
-          xgboost
-          shap
-          streamlit
-          scikit-image
-          opencv4
-          igraph
-          leidenalg
-          (ps.buildPythonPackage rec {
-            pname = "jupyterlab-vim";
-            version = "4.1.4";
-            pyproject = true;
+              dependencies = with pkgs; [
+                hatch-jupyter-builder
+                jupyterlab
+              ];
 
-            src = fetchPypi {
-              pname = "jupyterlab_vim";
-              inherit version;
-              hash = "sha256-q/KJGq+zLwy5StmDIa5+vL4Mq+Uj042A1WnApQuFIlo=";
-            };
-
-            build-system = with pkgs; [
-              hatch-nodejs-version
-              hatchling
-              jupyterlab
-            ];
-
-            dependencies = with pkgs; [
-              hatch-jupyter-builder
-              jupyterlab
-            ];
-
-            pythonImportsCheck = [
-              "jupyterlab_vim"
-            ];
-          })
-        ]);
+              pythonImportsCheck = [
+                "jupyterlab_vim"
+              ];
+            })
+          ]
+        );
 
       in
       {
@@ -74,7 +78,10 @@
             pandoc
             texlive.combined.scheme-full
           ];
-          buildInputs = [ pythonEnv pkgs.nodejs ];
+          buildInputs = [
+            pythonEnv
+            pkgs.nodejs
+          ];
 
           shellHook = ''
             echo "≡ƒö╣ Activating JupyterLab environment..."
@@ -88,5 +95,6 @@
             echo "Γ£à Jupyter Kernel Registered: Python (Nix)"
           '';
         };
-      });
+      }
+    );
 }
